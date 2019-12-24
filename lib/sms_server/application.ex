@@ -16,10 +16,12 @@ defmodule SmsServer.Application do
         options: [port: 4000]
       ),
       
-      # supervisor(SmsServer.SmppPool, [[]]),
-      # supervisor(SmsServer.ConsumerDsup, [[]]),
+      {SmsServer.Repo, []},
+      {SmsServer.SimpleCache, []},
+      supervisor(SmsServer.SmppReceiverDsup, [[]]),
+      supervisor(SmsServer.SmppPool, [[]]),
       supervisor(SmsServer.ConsumerPool, [[]]),
-      # supervisor(SmsServer.QueuePool, [[]])
+      supervisor(SmsServer.QueuePool, [[]]),
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

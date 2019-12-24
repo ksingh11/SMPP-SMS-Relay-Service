@@ -1,19 +1,14 @@
 defmodule SmsServer.Webserver.Router do
     use Plug.Router
-  
+    alias Api.Authentication
+
     plug(:match)
+    plug Authentication
+    plug :put_resp_content_type, "application/json"
     plug(:dispatch)
-  
-    get "/" do
+    
+    get "/send-message/" do
       conn
-      |> put_resp_content_type("application/json")
-      |> send_resp(200, Poison.encode!(message()))
-    end
-  
-    defp message do
-      %{
-        response_type: "in_channel",
-        text: "Hello from BOT :)"
-      }
+      |> WebServer.Apis.send_message
     end
   end

@@ -1,13 +1,24 @@
 defmodule SmsServer.QueuePool do
+    @moduledoc """
+        Process pool supervisor for AMQP Pool Process.
+    """
     use Supervisor
+    require Logger
+    alias SmsServer.Utils
 
     @poolsize 2
     def start_link(init_arg) do
+        Logger.info("SmsServer.QueuePool: starting process pool")
         Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
     end
 
-    def queue_msg(msg) do
-        :poolboy.transaction(:amqp_pool, fn(worker) -> SmsServer.QueueWorker.queue_msg(worker, msg) end)
+    def queue_sms(phone_number, message) do
+        queue_data(Utils.sms_queue_data(phone_number, message))
+    end
+
+    def queue_data(data) do
+        :poolboy.transaction(:amqp_pool, 
+            fn(worker) -> SmsServer.QueueWorker.queue_data(worker, data) end)
     end
 
     defp poolboy_config do

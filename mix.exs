@@ -22,12 +22,15 @@ defmodule SmsServer.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ecto_sql, "~> 3.3"},
+      {:postgrex, "~> 0.15.3"},
       {:plug_cowboy, "~> 2.1"},
       {:poison, "~> 4.0"},
       {:config_tuples, "~> 0.3.0"},
       {:poolboy, "~> 1.5"},
       {:amqp, "~> 1.4"},
-      {:smppex, "~> 2.3"}
+      {:smppex, "~> 2.3"},
+      {:cache_money, "~> 0.5.2"}
     ]
   end
 end

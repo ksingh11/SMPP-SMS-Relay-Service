@@ -1,13 +1,14 @@
 defmodule SmsServer.QueueWorker do
     use GenServer
     alias AMQP.Connection
+    require Logger
 
     @host "amqp://kbadmin:s78hfycz31qohxes@localhost:5672/khatabook"
     @reconnect_interval 2_000
     @channel "kb_channel"
 
     def start_link(_) do
-        IO.puts "Starting Queue"
+        Logger.info("QueueWorker: starting Queue Genserver")
         GenServer.start_link(__MODULE__, nil, [])
     end
 
@@ -16,12 +17,12 @@ defmodule SmsServer.QueueWorker do
         {:ok, nil}
     end
 
-    def queue_msg(pid, message) do
-        GenServer.cast(pid, {:msg, message})
+    def queue_data(pid, data) do
+        GenServer.cast(pid, {:queue_data, data})
     end
 
-    def handle_cast({:msg, msg}, state) do
-        AMQP.Basic.publish(state.channel, "", @channel, msg)
+    def handle_cast({:queue_data, data}, state) do
+        AMQP.Basic.publish(state.channel, "", @channel, data)
         {:noreply, state}
     end
 
@@ -32,18 +33,18 @@ defmodule SmsServer.QueueWorker do
           Process.monitor(connection.pid)
           {:ok, channel} = AMQP.Channel.open(connection)
           AMQP.Queue.declare(channel, @channel)
-          IO.puts "AMQP Connection successful."
+          Logger.info("AMQP Connection successful.")
           {:noreply, %{channel: channel, connection: connection}}
   
         {:error, _} ->
-          IO.puts "Failed to connect, restarting in #{@reconnect_interval} ms."           
+          Logger.error("Failed to connect, restarting in #{@reconnect_interval} ms.")       
           :timer.sleep(@reconnect_interval)
           {:stop, :amqp_down, nil}
       end
     end
 
     def handle_info({:DOWN, _, :process, _pid, reason}, _) do
-        IO.puts "AMQP Server disconnected"
+        Logger.info("AMQP Server disconnected")
         {:stop, {:connection_lost, reason}, nil}
     end
 

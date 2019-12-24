@@ -10,8 +10,8 @@ defmodule SmsServer.Webserver.Endpoint do
         json_decoder: Poison
     )
     plug(:dispatch)
-
-    forward("/sms", to: SmsServer.Webserver.Router)
+    
+    forward("/api/v1", to: SmsServer.Webserver.Router)
 
     match _ do
         send_resp(conn, 404, "Requested page not found!")
