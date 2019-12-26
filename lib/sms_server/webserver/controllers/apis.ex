@@ -14,11 +14,11 @@ defmodule WebServer.Apis do
     end
 
     def send_message(conn) do
-        response =
-            case trigger_sms(conn.params) do
-                :ok -> %{success: true, message: "Message Queued"}
-                {:error, reason} -> %{success: false, message: reason}
+        case trigger_sms(conn.params) do
+            {:ok, _} ->
+                send_resp(conn, 200, Poison.encode!(%{success: true, message: "Message Queued"}))
+            {:error, reason} ->
+                send_resp(conn, 503, Poison.encode!(%{success: false, message: reason}))
         end
-        send_resp(conn, 200, Poison.encode!(response))
     end
 end

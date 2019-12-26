@@ -18,12 +18,22 @@ defmodule SmsServer.QueueWorker do
     end
 
     def queue_data(pid, data) do
-        GenServer.cast(pid, {:queue_data, data})
+        try do
+            GenServer.call(pid, {:queue_data, data})
+        catch
+            :exit, value ->
+                Logger.error("SMPP worker send_msg Timeout: #{inspect value}")
+                {:error, :timeout}
+        end
     end
 
-    def handle_cast({:queue_data, data}, state) do
-        AMQP.Basic.publish(state.channel, "", @channel, data)
-        {:noreply, state}
+    def handle_call({:queue_data, data}, _from, state) do
+        result =
+        case AMQP.Basic.publish(state.channel, "", @channel, data) do
+            :ok -> {:ok, :published}
+            {:error, reason} -> {:error, reason}
+        end
+        {:reply, result, state}
     end
 
     def handle_info(:connect, _state) do

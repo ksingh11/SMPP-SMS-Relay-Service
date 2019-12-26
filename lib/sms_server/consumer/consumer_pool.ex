@@ -16,7 +16,7 @@ defmodule SmsServer.ConsumerPool do
             {:name, {:local, :consumer_pool}},
             {:worker_module, SmsServer.ConsumerWorker},
             {:size, @poolsize},
-            {:max_overflow, 0}
+            {:max_overflow, 0}  # Warning: do not keep overflow workers
         ]
     end
 

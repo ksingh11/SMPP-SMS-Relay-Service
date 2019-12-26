@@ -17,8 +17,14 @@ defmodule SmsServer.QueuePool do
     end
 
     def queue_data(data) do
-        :poolboy.transaction(:amqp_pool, 
-            fn(worker) -> SmsServer.QueueWorker.queue_data(worker, data) end)
+        try do
+            :poolboy.transaction(:amqp_pool,
+                fn(worker) -> SmsServer.QueueWorker.queue_data(worker, data) end)
+        catch
+            :exit, value ->
+                Logger.error("Queue pool Timeout: #{inspect value}")
+                {:error, :timeout}
+        end
     end
 
     defp poolboy_config do
