@@ -23,7 +23,7 @@ defmodule SmsServer.SimpleCache do
 
     def handle_call({:set, key, val, ttl}, _from, cache) do
         res = CacheMoney.set(cache, key, val, ttl)
-        {:reply, :ok, cache}
+        {:reply, res, cache}
     end
 
     def handle_call({:get, key}, _from, cache) do

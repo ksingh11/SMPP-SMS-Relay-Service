@@ -8,8 +8,7 @@ defmodule SmsServer.SmppRecvWorker do
     use GenServer
     require Logger
 
-    @pdus_timeout 1000
-    @pdus_check_interval 10_000
+    def env(attribute), do: Application.get_env(:sms_server, :smpp)[attribute]
 
     def start_link(child_id, smpp_state) do
         Logger.debug("Strating SMPP receiver process.")
@@ -28,15 +27,16 @@ defmodule SmsServer.SmppRecvWorker do
         |> Enum.each(&process_messages(&1))
     end
 
-    defp process_messages(msg) do
-        Logger.debug("#{inspect msg}")
+    defp process_messages({:pdu, %{mandatory: %{short_message: short_message}}}) do
+        Logger.info("PDUs: #{inspect short_message}")
     end
 
     # request for messages, process earlier messages.
     def handle_info(:receive, state) do
-        messages = SMPPEX.ESME.Sync.pdus(state.esme, @pdus_timeout)
+        Logger.debug("SMPP Receiver set to receive. For: #{inspect state.esme}")
+        messages = SMPPEX.ESME.Sync.pdus(state.esme, env(:pdus_timeout))
         process_messages(messages)
-        Process.send_after(self(), :receive, @pdus_check_interval)
+        Process.send_after(self(), :receive, env(:pdus_check_interval))
         {:noreply, state}
     end
 
@@ -47,11 +47,11 @@ defmodule SmsServer.SmppRecvWorker do
     end
 
     def handle_info(message, state) do
-        Logger.debug("#{inspect message}")
+        Logger.debug("Flush unexpected message: #{inspect message}")
         {:noreply, state}
     end
 
     def terminate(reason, state) do
-        Logger.debug("Terminating SMPP Recv worker: #{inspect reason}")
+        Logger.info("Terminating SMPP Recv worker: #{inspect reason}, state: #{inspect state}")
     end
 end

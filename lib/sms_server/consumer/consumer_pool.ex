@@ -5,7 +5,8 @@ defmodule SmsServer.ConsumerPool do
     use Supervisor
     require Logger
 
-    @poolsize 5
+    def env(attribute), do: Application.get_env(:sms_server, :consumer)[attribute]
+
     def start_link(init_arg) do
         Logger.info("ConsumerPool: starting supervisor process.")
         Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
@@ -15,7 +16,7 @@ defmodule SmsServer.ConsumerPool do
         [
             {:name, {:local, :consumer_pool}},
             {:worker_module, SmsServer.ConsumerWorker},
-            {:size, @poolsize},
+            {:size, env(:poolsize)},
             {:max_overflow, 0}  # Warning: do not keep overflow workers
         ]
     end
@@ -25,6 +26,6 @@ defmodule SmsServer.ConsumerPool do
         children = [
             :poolboy.child_spec(:consumer_pool, poolboy_config())
         ]
-        Supervisor.init(children, strategy: :one_for_one, max_restarts: 3 * @poolsize)
+        Supervisor.init(children, strategy: :one_for_one, max_restarts: 3 * env(:poolsize))
     end
 end

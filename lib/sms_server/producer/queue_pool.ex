@@ -4,19 +4,15 @@ defmodule SmsServer.QueuePool do
     """
     use Supervisor
     require Logger
-    alias SmsServer.Utils
-
-    @poolsize 2
+    import Application, only: [get_env: 2]
+    
     def start_link(init_arg) do
         Logger.info("SmsServer.QueuePool: starting process pool")
         Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
     end
 
-    def queue_sms(phone_number, message) do
-        queue_data(Utils.sms_queue_data(phone_number, message))
-    end
-
     def queue_data(data) do
+        Logger.debug("QueuePool:queuing data: #{data}")
         try do
             :poolboy.transaction(:amqp_pool,
                 fn(worker) -> SmsServer.QueueWorker.queue_data(worker, data) end)
@@ -31,7 +27,7 @@ defmodule SmsServer.QueuePool do
         [
             {:name, {:local, :amqp_pool}},
             {:worker_module, SmsServer.QueueWorker},
-            {:size, @poolsize}
+            {:size, Application.get_env(:sms_server, :producer)[:poolsize]}
         ]
     end
 
@@ -40,6 +36,6 @@ defmodule SmsServer.QueuePool do
         children = [
             :poolboy.child_spec(:amqp_pool, poolboy_config())
         ]
-        Supervisor.init(children, strategy: :one_for_one)
+        Supervisor.init(children, strategy: :one_for_one, max_restarts: 3 * get_env(:sms_server, :producer)[:poolsize])
     end
 end

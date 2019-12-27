@@ -5,11 +5,7 @@ defmodule SmsServer.ConsumerWorker do
     use GenServer
     alias AMQP.Connection
     require Logger
-
-    @host "amqp://kbadmin:s78hfycz31qohxes@localhost:5672/khatabook"
-    @reconnect_interval 3_000
-    @channel "kb_channel"
-    @prefetch_count 5
+    import Application, only: [get_env: 2]
 
     def start_link(_args) do
         Logger.debug("Starting consumer worker genserver")
@@ -27,31 +23,31 @@ defmodule SmsServer.ConsumerWorker do
             {:ok, _message_id} ->  
                 case AMQP.Basic.ack channel, tag do
                     :ok -> :ok
-                    other -> Logger.error("AMQP ACK Failed")
+                    other -> Logger.error("AMQP ACK Failed: #{inspect other}")
                 end
             other -> Logger.error("Consumer send message failed: #{inspect other}")
                 case AMQP.Basic.nack channel, tag do
                     :ok -> :ok
-                    other -> Logger.error("AMQP NACK Failed")
+                    other -> Logger.error("AMQP NACK Failed: #{inspect other}")
                 end
         end
     end
 
     def handle_info(:connect, _state) do
-        case Connection.open(@host) do
+        case Connection.open(get_env(:sms_server, :amqp)[:amqp_host]) do
           {:ok, connection} ->
             # Get notifications when the connection goes down
             Logger.info("Consumer: AMQP Connection successful.")
             Process.monitor(connection.pid)
             {:ok, channel} = AMQP.Channel.open(connection)
-            AMQP.Queue.declare(channel, @channel)
-            AMQP.Basic.qos(channel, prefetch_count: @prefetch_count)
-            AMQP.Basic.consume(channel, @channel, self())
+            AMQP.Queue.declare(channel, get_env(:sms_server, :amqp)[:channel])
+            AMQP.Basic.qos(channel, prefetch_count: get_env(:sms_server, :consumer)[:prefetch_count])
+            AMQP.Basic.consume(channel, get_env(:sms_server, :amqp)[:channel], self())
             {:noreply, %{channel: channel, connection: connection}}
     
           {:error, _} ->
-            Logger.error("Failed to connect, restarting in #{@reconnect_interval} ms.")
-            :timer.sleep(@reconnect_interval)
+            Logger.error("Failed to connect, restarting in #{inspect get_env(:sms_server, :consumer)[:reconnect_interval]} ms.")
+            :timer.sleep(get_env(:sms_server, :consumer)[:reconnect_interval])
             {:stop, :amqp_conn_down, nil}
         end
       end
@@ -87,13 +83,13 @@ defmodule SmsServer.ConsumerWorker do
     end
 
     def handle_info(msg, state) do
-        # For unhandled messages
-        Logger.debug("Consumer Got Unexpected message: #{inspect msg}")
+        # Flush unhandled messages
+        Logger.warn("Consumer Got Unexpected message (flushing): #{inspect msg}")
         {:noreply, state}
     end
 
     def terminate(reason, state) do
-        Logger.debug("Terminating consumer worker: #{inspect reason}")
+        Logger.info("Terminating consumer worker: #{inspect reason}")
         if state != nil do
           AMQP.Connection.close(state.connection)
         end

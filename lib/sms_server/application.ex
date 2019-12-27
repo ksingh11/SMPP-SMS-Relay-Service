@@ -13,7 +13,7 @@ defmodule SmsServer.Application do
       Plug.Cowboy.child_spec(
         scheme: :http,
         plug: SmsServer.Webserver.Endpoint,
-        options: [port: 4000]
+        options: [port: Application.get_env(:sms_server, :web)[:port]]
       ),
       
       {SmsServer.Repo, []},

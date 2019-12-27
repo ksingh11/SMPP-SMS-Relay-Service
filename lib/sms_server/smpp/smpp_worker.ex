@@ -3,20 +3,7 @@ defmodule SmsServer.SmppWorker do
     alias SmsServer.Utils
     require Logger
 
-    @host "smsc-sim.smscarrier.com" #"smpp10.solutions4mobiles.com"
-    @port 2775 #2780
-    @username "test" # "khatab"
-    @password "test"
-    @request_pdus true
-    @transceiver true
-    @source_name "ZOSTEL"
-    @source_ton 1
-    @source_npi 1
-    @dest_ton 1
-    @dest_npi 1
-    @registered_delivery 0
-    @reconnect_interval 5_000
-    @smpp_submit_sm_timeout 500
+    def env(attribute), do: Application.get_env(:sms_server, :smpp)[attribute]
 
     def start_link(_) do
         {:ok, pid} = GenServer.start_link(__MODULE__, nil, [])
@@ -32,9 +19,9 @@ defmodule SmsServer.SmppWorker do
     # call for SMPP send message
     def send_msg(pid, data) do
         case Utils.parse_queue_data(data) do
-            {dest_number, message} ->
+            {sender, dest_number, message} ->
                 try do
-                    GenServer.call(pid, {:send_msg, dest_number, message})
+                    GenServer.call(pid, {:send_msg, sender, dest_number, message})
                 catch
                     :exit, value ->
                         Logger.error("SMPP worker send_msg Timeout: #{inspect value}")
@@ -44,14 +31,14 @@ defmodule SmsServer.SmppWorker do
         end
     end
 
-    def handle_call({:send_msg, dest_number, message}, _from, state) do
-        Logger.debug("SMPP send_msg phone: #{inspect dest_number}, message: #{inspect message}")
-        submit_sm = SMPPEX.Pdu.Factory.submit_sm({@source_name, @source_ton, @source_npi}, 
-                                                 {dest_number, @dest_ton, @dest_npi}, 
-                                                 message, @registered_delivery)
+    def handle_call({:send_msg, sender, dest_number, message}, _from, state) do
+        Logger.debug("SMPP send_msg [#{inspect sender}] phone: #{inspect dest_number}, message: #{inspect message}")
+        submit_sm = SMPPEX.Pdu.Factory.submit_sm({sender, env(:source_ton), env(:source_npi)}, 
+                                                 {dest_number, env(:dest_ton), env(:dest_npi)}, 
+                                                 message, env(:registered_delivery))
         
         result = 
-        case SMPPEX.ESME.Sync.request(state.esme, submit_sm, @smpp_submit_sm_timeout) do
+        case SMPPEX.ESME.Sync.request(state.esme, submit_sm, env(:smpp_submit_sm_timeout)) do
             {:ok, submit_sm_resp} -> 
                 message_id = SMPPEX.Pdu.field(submit_sm_resp, :message_id)
                 {:ok, message_id}
@@ -63,31 +50,35 @@ defmodule SmsServer.SmppWorker do
 
     defp smpp_connect() do
         Logger.debug("SMPP Connect method. connecting...")
+        Logger.info("SMPP Sever, host: #{inspect env(:host)}, port: #{inspect env(:port)}.")
         try do
             esme =
-            case SMPPEX.ESME.Sync.start_link(@host, @port) do
+            case SMPPEX.ESME.Sync.start_link(env(:host), env(:port)) do
                 {:ok, esme} -> esme
                 other -> throw other
             end
             
             bind_pdu = 
             cond do
-                @transceiver -> SMPPEX.Pdu.Factory.bind_transceiver(@username, @password)
-                true -> SMPPEX.Pdu.Factory.bind_transmitter(@username, @password)
+                env(:transceiver) -> 
+                    Logger.debug("SMPP starting in transceiver mode.")
+                    SMPPEX.Pdu.Factory.bind_transceiver(env(:username), env(:password))
+                true -> 
+                    Logger.debug("SMPP starting in transmitter mode.")
+                    SMPPEX.Pdu.Factory.bind_transmitter(env(:username), env(:password))
             end
 
             # Request bind-data PDU.
-            bind_resp = 
             case SMPPEX.ESME.Sync.request(esme, bind_pdu) do
-                {:ok, bind_resp} -> Logger.debug("New SMPP Connection: #{inspect bind_resp}")
-                                    bind_resp
+                {:ok, bind_resp} -> 
+                    Logger.debug("New SMPP Connection: #{inspect bind_resp}")
                 other -> throw other
             end
             
             # start PDU receiver process
             receiver =
             cond do
-                @request_pdus and @transceiver ->
+                env(:request_pdus) and env(:transceiver) ->
                     case SmsServer.SmppReceiverDsup.start_receiver(%{esme: esme, parent: self()}) do
                         {:ok, receiver} -> 
                                 Logger.debug("New SMPP Receiver: #{inspect receiver}")
@@ -111,11 +102,11 @@ defmodule SmsServer.SmppWorker do
         Logger.debug("Setting up SMPP Connection")
         case smpp_connect() do
             {:ok, esme, receiver} -> 
-                    Logger.debug("SMPP Connected.")
+                    Logger.debug("SMPP server Connected.")
                     {:noreply, %{esme: esme, receiver: receiver}}
             {:error, reason} ->
-                Logger.error("Failed to connect, restarting in #{@reconnect_interval} ms. Error: #{inspect reason}")
-                :timer.sleep(@reconnect_interval)
+                Logger.error("Failed to connect, restarting in #{inspect env(:reconnect_interval)} ms. Error: #{inspect reason}")
+                :timer.sleep(env(:reconnect_interval))
                 {:stop, :smpp_conn_fail, state}
         end
     end

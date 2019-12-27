@@ -1,4 +1,4 @@
-defmodule SmsServer.ApiKey do
+defmodule DB.ApiKey do
     use Ecto.Schema
     alias SmsServer.Repo
 
@@ -10,11 +10,11 @@ defmodule SmsServer.ApiKey do
         timestamps()
     end
 
-    def fixture() do
-        Repo.insert %SmsServer.ApiKey{client: "zostel", sender: "ZOSTEL", key: "hello123"}
+    def test_fixture() do
+        Repo.insert %DB.ApiKey{client: "zostel", sender: "ZOSTEL", key: "hello123"}
     end
 
     def get_client_data(client_name) do
-        Repo.get_by(SmsServer.ApiKey, client: client_name)
+        Repo.get_by(DB.ApiKey, client: client_name)
     end
 end
